@@ -1,2 +1,11 @@
+#Data directories
 *.zip
 data/**/*
+
+SourceSeparation/demucs_output/**/*
+
+
+
+
+#python cache 
+*.pyc
