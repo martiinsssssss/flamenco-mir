@@ -1,7 +1,5 @@
 import os
 from pathlib import Path
-##Avoid TorchCodec dependancies
-#import torchaudio
 from demucs.pretrained import get_model
 from demucs.apply import apply_model
 import soundfile as sf
@@ -34,14 +32,16 @@ class DemucsSeparator:
     def separate_file(self, audio_path):
         """Run separation on a single file."""
 
-
         wav, sr = sf.read(audio_path)
+
         wav = torch.tensor(wav).float()
+
         # convert to channels x samples
         if wav.ndim == 1:
             wav = wav.unsqueeze(0)
         else:
             wav = wav.T
+
         wav = wav.to(self.device)
 
         with torch.no_grad():
@@ -52,8 +52,8 @@ class DemucsSeparator:
         track_dir.mkdir(exist_ok=True)
 
 
-        vocals_stem = sources[0].cpu()
-        instrumental = sources[1] + sources[2] + sources[3]
+        vocals_stem = sources[3].cpu()
+        instrumental = sources[0] + sources[1] + sources[2]
         instrumental_stem = instrumental.cpu()
 
         sf.write(track_dir / f"voice.wav",
@@ -63,7 +63,6 @@ class DemucsSeparator:
         sf.write(track_dir / f"instrumental.wav",
                 instrumental_stem.T.numpy(),
                 sr)
-        
 
 
     def separate_from_dataframe(self, df, path_column):
