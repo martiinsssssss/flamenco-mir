@@ -9,3 +9,7 @@ SourceSeparation/demucs_output/**/*
 
 #python cache 
 *.pyc
+
+
+#
+SourceSeparation/wav_f0_paths_mapping.csv
