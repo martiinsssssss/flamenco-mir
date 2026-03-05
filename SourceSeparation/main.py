@@ -1,6 +1,6 @@
 
 import pandas as pd
-from SourceSeparator import DemucsSeparator
+from SourceSeparatorDemucs import DemucsSeparator
 import torch
 import time
 from pathlib import Path
