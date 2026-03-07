@@ -1,0 +1,168 @@
+import torch
+import numpy as np
+import soundfile as sf
+import pesto
+from pathlib import Path
+from typing import Tuple, Optional
+try:
+    import librosa
+except ImportError:
+    librosa = None
+
+
+class PESTOTracker:
+    """
+    Pitch detection using the PESTO (Probabilistic Expectation-Maximization Source Tracking Outline) algorithm.
+    
+    PESTO is a PyTorch-based pitch detection model that works best with 16kHz audio.
+    It provides both pitch estimates and confidence scores for each frame.
+    """
+    
+    def __init__(
+        self,
+        confidence_threshold: float = 0.5,
+        step_size: float = 0.01,
+        sample_rate: int = 44100,
+        use_gpu: bool = True
+    ):
+        """
+        Initialize the PESTO tracker.
+        
+        Args:
+            confidence_threshold (float): Confidence threshold for filtering pitch estimates (0-1).
+                                        Estimates below this threshold are considered unvoiced.
+                                        Default: 0.5
+            step_size (float): Hop length in seconds for pitch estimation. Default: 0.01 (10ms)
+            sample_rate (int): Target sample rate for audio processing. PESTO works best at 16kHz.
+                              Default: 16000
+            use_gpu (bool): Whether to use GPU acceleration if available. Default: True
+        """
+        self.confidence_threshold = confidence_threshold
+        self.step_size = step_size
+        self.sample_rate = sample_rate
+        self.use_gpu = use_gpu and torch.cuda.is_available()
+        self.device = 'cuda' if self.use_gpu else 'cpu'
+    
+    def extract_f0(self, audio_path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Extract pitch (f0) from an audio file using PESTO.
+        
+        Args:
+            audio_path (str): Path to the audio file.
+        
+        Returns:
+            Tuple[np.ndarray, np.ndarray, np.ndarray]: 
+                - pitches: Detected pitch values in Hz (unvoiced frames set to 0)
+                - times: Time positions for each frame in seconds
+                - voicing_confidence: Confidence scores for each frame
+        
+        Raises:
+            FileNotFoundError: If the audio file does not exist.
+            RuntimeError: If PESTO model fails to process the audio.
+        """
+        # Validate file path
+        audio_path = Path(audio_path)
+        if not audio_path.exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        
+        try:
+            # Load audio using soundfile
+            wav, sr = sf.read(str(audio_path))
+            
+            # Validate audio
+            if len(wav) == 0:
+                raise ValueError("Audio file is empty or could not be loaded.")
+            
+            # Resample if necessary (PESTO works best with 16kHz)
+            if sr != self.sample_rate and librosa is not None:
+                wav = librosa.resample(wav, orig_sr=sr, target_sr=self.sample_rate)
+                sr = self.sample_rate
+            elif sr != self.sample_rate:
+                raise ValueError(
+                    f"Audio sample rate {sr} does not match target {self.sample_rate}. "
+                    "Install librosa for automatic resampling."
+                )
+            
+            # Convert to torch tensor
+            wav = torch.tensor(wav, dtype=torch.float32)
+            
+            # Handle multi-channel audio
+            if wav.ndim == 1:
+                # Already mono
+                pass
+            else:
+                # Multi-channel: transpose to channels x samples then take mean
+                wav = wav.T
+                wav = wav.mean(dim=0)  # Average across channels to get mono
+            
+            # Move to appropriate device
+            if self.use_gpu:
+                wav = wav.to(self.device)
+            
+            # Run PESTO pitch detection
+            # Returns: timesteps, pitch, confidence, activations
+            timesteps, pitch, confidence, activations = pesto.predict(wav, sr)
+            
+            # Convert to numpy if still tensors
+            if isinstance(timesteps, torch.Tensor):
+                timesteps = timesteps.cpu().numpy()
+            if isinstance(pitch, torch.Tensor):
+                pitch = pitch.cpu().numpy()
+            if isinstance(confidence, torch.Tensor):
+                confidence = confidence.cpu().numpy()
+            
+            # Flatten if needed
+            timesteps = timesteps.flatten()
+            pitch = pitch.flatten()
+            confidence = confidence.flatten()
+            
+            # Apply confidence filtering: set unvoiced frames (low confidence) to 0 Hz
+            final_pitches = np.where(
+                confidence > self.confidence_threshold,
+                pitch,
+                0  # 0 Hz represents unvoiced
+            )
+            
+            return final_pitches, timesteps, confidence
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to extract pitch from {audio_path}: {str(e)}")
+    
+    def extract_f0_with_voicing(
+        self,
+        audio_path: str
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Extract pitch (f0) from an audio file with separate voicing information.
+        
+        Args:
+            audio_path (str): Path to the audio file.
+        
+        Returns:
+            Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+                - pitches: Detected pitch values in Hz (only voiced frames)
+                - times: Time positions for each frame in seconds
+                - voicing: Binary voicing labels (1 = voiced, 0 = unvoiced)
+                - confidence: Confidence scores for each frame
+        """
+        pitches, timesteps, confidence = self.extract_f0(audio_path)
+        
+        # Create voicing vector
+        voicing = (confidence > self.confidence_threshold).astype(int)
+        
+        # Extract only voiced pitch values
+        voiced_pitches = pitches[voicing == 1]
+        
+        return voiced_pitches, timesteps, voicing, confidence
+    
+    def set_confidence_threshold(self, threshold: float) -> None:
+        """
+        Update the confidence threshold for voicing detection.
+        
+        Args:
+            threshold (float): New confidence threshold (0-1).
+        """
+        if not 0 <= threshold <= 1:
+            raise ValueError("Confidence threshold must be between 0 and 1.")
+        self.confidence_threshold = threshold
+
