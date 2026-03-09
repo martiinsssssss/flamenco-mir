@@ -2,7 +2,8 @@
 *.zip
 data/**/*
 
-SourceSeparation/demucs_output/**/*
+SourceSeparation/*_output/**/*
+SourceSeparation/pretrained_models/**/*
 
 .venv/
 
