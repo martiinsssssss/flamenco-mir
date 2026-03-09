@@ -4,8 +4,9 @@ data/**/*
 
 SourceSeparation/demucs_output/**/*
 
+.venv/
 
-
+.DS_Store
 
 #python cache 
 *.pyc
