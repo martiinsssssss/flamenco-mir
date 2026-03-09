@@ -10,3 +10,4 @@ ffmpeg-python
 # Data & utilities
 pandas
 numpy
+mir_eval
