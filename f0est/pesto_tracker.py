@@ -22,7 +22,7 @@ class PESTOTracker:
         self,
         confidence_threshold: float = 0.5,
         step_size: float = 0.01,
-        sample_rate: int = 44100,
+        sample_rate: int = 16000,
         use_gpu: bool = True
     ):
         """
@@ -38,7 +38,7 @@ class PESTOTracker:
             use_gpu (bool): Whether to use GPU acceleration if available. Default: True
         """
         self.confidence_threshold = confidence_threshold
-        self.step_size = step_size
+        self.step_size = step_size*1000 #convert seconds to miliseconds
         self.sample_rate = sample_rate
         self.use_gpu = use_gpu and torch.cuda.is_available()
         self.device = 'cuda' if self.use_gpu else 'cpu'
@@ -53,7 +53,7 @@ class PESTOTracker:
         Returns:
             Tuple[np.ndarray, np.ndarray, np.ndarray]: 
                 - pitches: Detected pitch values in Hz (unvoiced frames set to 0)
-                - times: Time positions for each frame in seconds
+                - timesteps: Time positions for each frame in seconds
                 - voicing_confidence: Confidence scores for each frame
         
         Raises:
@@ -101,7 +101,7 @@ class PESTOTracker:
             
             # Run PESTO pitch detection
             # Returns: timesteps, pitch, confidence, activations
-            timesteps, pitch, confidence, activations = pesto.predict(wav, sr)
+            timesteps, pitch, confidence, activations = pesto.predict(wav, sr, step_size=self.step_size)
             
             # Convert to numpy if still tensors
             if isinstance(timesteps, torch.Tensor):
