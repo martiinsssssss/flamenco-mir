@@ -15,3 +15,6 @@ SourceSeparation/pretrained_models/**/*
 
 #
 SourceSeparation/wav_f0_paths_mapping.csv
+
+
+f0est/f0Contour_PESTO/*.csv
