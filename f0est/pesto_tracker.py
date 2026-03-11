@@ -38,7 +38,7 @@ class PESTOTracker:
             use_gpu (bool): Whether to use GPU acceleration if available. Default: True
         """
         self.confidence_threshold = confidence_threshold
-        self.step_size = step_size*1000 #convert seconds to miliseconds
+        self.step_size = step_size #convert seconds to miliseconds
         self.sample_rate = sample_rate
         self.use_gpu = use_gpu and torch.cuda.is_available()
         self.device = 'cuda' if self.use_gpu else 'cpu'
@@ -101,7 +101,7 @@ class PESTOTracker:
             
             # Run PESTO pitch detection
             # Returns: timesteps, pitch, confidence, activations
-            timesteps, pitch, confidence, activations = pesto.predict(wav, sr, step_size=self.step_size)
+            timesteps, pitch, confidence, activations = pesto.predict(wav, sr, step_size=self.step_size*1000)# convert seconds to miliseconds
             
             # Convert to numpy if still tensors
             if isinstance(timesteps, torch.Tensor):
@@ -165,4 +165,50 @@ class PESTOTracker:
         if not 0 <= threshold <= 1:
             raise ValueError("Confidence threshold must be between 0 and 1.")
         self.confidence_threshold = threshold
+
+    def save_pitch_contour(
+        self,
+        audio_path: str,
+        output_path: Optional[str] = None,
+        include_confidence: bool = True
+    ) -> Path:
+        """
+        Extract pitch from an audio file and save its contour to a CSV file.
+
+        Args:
+            audio_path (str): Path to the input audio file.
+            output_path (Optional[str]): Path to the output CSV file.
+                                        If None, saves next to the input audio as "<stem>.f0.csv".
+            include_confidence (bool): Whether to include confidence and voicing columns.
+
+        Returns:
+            Path: Path to the saved CSV file.
+        """
+        pitches, timesteps, confidence = self.extract_f0(audio_path)
+
+        audio_path = Path(audio_path)
+        if output_path is None:
+            output_path = audio_path.with_suffix(".f0.csv")
+        else:
+            output_path = Path(output_path)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if include_confidence:
+            voicing = (confidence > self.confidence_threshold).astype(int)
+            data = np.column_stack((timesteps/1000, pitches, confidence, voicing))
+            header = "time_sec,f0_hz,confidence,voicing"
+        else:
+            data = np.column_stack((timesteps, pitches))
+            header = "time_sec,f0_hz"
+
+        np.savetxt(
+            output_path,
+            data,
+            delimiter=",",
+            header=header,
+            comments="",
+            fmt="%.8f"
+        )
+
+        return output_path
 
