@@ -4,10 +4,8 @@ import soundfile as sf
 import pesto
 from pathlib import Path
 from typing import Tuple, Optional
-try:
-    import librosa
-except ImportError:
-    librosa = None
+import librosa
+
 
 
 class PESTOTracker:
