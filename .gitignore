@@ -2,7 +2,7 @@
 *.zip
 data/**/*
 SourceSeparation/*_output/**/*
-f0est/f0Contour_PESTO/**/*.csv
+f0est/f0Contour_voice_PESTO/*.csv
 
 
 .venv/
