@@ -79,7 +79,7 @@ def save_f0_csv(output_csv: Path, times, pitches, confidence):
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     with output_csv.open("w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["time", "pitch", "confidence"])
+        writer.writerow(["time_sec", "f0_hz", "confidence"])
         for t, p, c in zip(times, pitches, confidence):
             writer.writerow([float(t), float(p), float(c)])
 
@@ -110,8 +110,7 @@ if __name__ == "__main__":
         pitches, times, confidence = tracker.extract_f0(wav_file)
 
         rel = wav_file.relative_to(args.input_dir)
-        out_dir = args.output_dir / rel.parent
-        out_csv = out_dir / f"{wav_file.stem}_{args.method}_f0.csv"
+        out_csv = args.output_dir / f"{rel.parent.name}.f0.csv"
         save_f0_csv(out_csv, times, pitches, confidence)
 
         voiced = (confidence > args.confidence_threshold).sum()
