@@ -51,6 +51,12 @@ def parse_args():
         help="Frame step size in seconds for supported methods.",
     )
     parser.add_argument(
+        "--sample-rate",
+        type=int,
+        default=44100,
+        help="Sample rate (Hz) to resample audio before f0 extraction.",
+    )
+    parser.add_argument(
         "--use-gpu",
         action="store_true",
         help="Enable GPU for supported methods.",
@@ -58,11 +64,12 @@ def parse_args():
     return parser.parse_args()
 
 
-def build_tracker(method: str, confidence_threshold: float, step_size: float, use_gpu: bool):
+def build_tracker(method: str, confidence_threshold: float, step_size: float, sample_rate: int, use_gpu: bool):
     if method == "pesto":
         return PESTOTracker(
             confidence_threshold=confidence_threshold,
             step_size=step_size,
+            sample_rate=sample_rate,
             use_gpu=use_gpu,
         )
     raise ValueError(f"Unsupported method: {method}")
@@ -95,6 +102,7 @@ if __name__ == "__main__":
         method=args.method,
         confidence_threshold=args.confidence_threshold,
         step_size=args.step_size,
+        sample_rate=args.sample_rate,
         use_gpu=args.use_gpu,
     )
 
