@@ -1,0 +1,23 @@
+name: flamencoMIR
+channels:
+  - pytorch
+  - conda-forge
+
+dependencies:
+  - python=3.10
+  - ipykernel
+  - numpy
+  - scipy
+  - pandas
+  - librosa
+  - mir_eval
+  - pysoundfile
+  - pytorch=2.1
+  - torchaudio=2.1
+  - cpuonly
+  - ffmpeg
+  - pip
+  - pip:
+      - demucs
+      - spleeter
+      - pesto-pitch
