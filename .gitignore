@@ -11,7 +11,7 @@ SourceSeparation/pretrained_models/**/*
 
 #python cache 
 *.pyc
-
+*.requirements.txt
 
 #
 SourceSeparation/wav_f0_paths_mapping.csv
