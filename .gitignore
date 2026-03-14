@@ -1,9 +1,9 @@
 #Data directories
 *.zip
 data/**/*
-
 SourceSeparation/*_output/**/*
-SourceSeparation/pretrained_models/**/*
+f0est/f0Contour_PESTO/*.csv
+
 
 .venv/
 
@@ -13,8 +13,8 @@ SourceSeparation/pretrained_models/**/*
 *.pyc
 *.requirements.txt
 
-#
-SourceSeparation/wav_f0_paths_mapping.csv
+#Models
+SourceSeparation/pretrained_models/**/*
 
-
-f0est/f0Contour_PESTO/*.csv
+#Examples
+*.sv
