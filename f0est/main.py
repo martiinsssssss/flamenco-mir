@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument(
         "--step-size",
         type=float,
-        default=0.01,
+        default=0.00290249,
         help="Frame step size in seconds for supported methods.",
     )
     parser.add_argument(

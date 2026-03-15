@@ -4,9 +4,7 @@ import soundfile as sf
 import pesto
 from pathlib import Path
 from typing import Tuple, Optional
-import librosa
-
-
+from scipy.signal import resample_poly
 
 class PESTOTracker:
     """
@@ -72,8 +70,8 @@ class PESTOTracker:
                 raise ValueError("Audio file is empty or could not be loaded.")
             
             # Resample if necessary (PESTO works best with 16kHz)
-            if sr != self.sample_rate and librosa is not None:
-                wav = librosa.resample(wav, orig_sr=sr, target_sr=self.sample_rate)
+            if sr != self.sample_rate:
+                wav = resample_poly(wav, self.sample_rate, sr)
                 sr = self.sample_rate
             elif sr != self.sample_rate:
                 raise ValueError(
@@ -99,20 +97,51 @@ class PESTOTracker:
             
             # Run PESTO pitch detection
             # Returns: timesteps, pitch, confidence, activations
-            timesteps, pitch, confidence, activations = pesto.predict(wav, sr, step_size=self.step_size*1000)# convert seconds to miliseconds
-            
-            # Convert to numpy if still tensors
-            if isinstance(timesteps, torch.Tensor):
-                timesteps = timesteps.cpu().numpy()
-            if isinstance(pitch, torch.Tensor):
-                pitch = pitch.cpu().numpy()
-            if isinstance(confidence, torch.Tensor):
-                confidence = confidence.cpu().numpy()
-            
-            # Flatten if needed
-            timesteps = timesteps.flatten()
-            pitch = pitch.flatten()
-            confidence = confidence.flatten()
+            #timesteps, pitch, confidence, _ = pesto.predict(wav, sr, step_size=self.step_size*1000)# convert seconds to miliseconds
+            chunk_sec = 15
+            chunk_samples = int(chunk_sec * self.sample_rate)
+
+            pitch = []
+            confidence = []
+            timesteps = []
+
+            for start in range(0, len(wav), chunk_samples):
+                chunk = wav[start:start + chunk_samples]
+
+                chunk_timesteps, chunk_pitch, chunk_confidence, _ = pesto.predict(
+                    chunk, self.sample_rate, step_size=self.step_size * 1000
+                )
+
+                # Avoid in-place ops on inference tensors returned by PyTorch models
+                chunk_timesteps = chunk_timesteps + (start / self.sample_rate)  # shift timestamps
+
+                # Convert chunk outputs to numpy and aggregate
+                if isinstance(chunk_pitch, torch.Tensor):
+                    chunk_pitch = chunk_pitch.detach().cpu().numpy()
+                else:
+                    chunk_pitch = np.asarray(chunk_pitch)
+
+                if isinstance(chunk_confidence, torch.Tensor):
+                    chunk_confidence = chunk_confidence.detach().cpu().numpy()
+                else:
+                    chunk_confidence = np.asarray(chunk_confidence)
+
+                if isinstance(chunk_timesteps, torch.Tensor):
+                    chunk_timesteps = chunk_timesteps.detach().cpu().numpy()
+                else:
+                    chunk_timesteps = np.asarray(chunk_timesteps)
+
+                pitch.append(chunk_pitch)
+                confidence.append(chunk_confidence)
+                timesteps.append(chunk_timesteps)
+
+
+
+    
+            # Concatenate chunk outputs
+            timesteps = np.concatenate(timesteps) if timesteps else np.array([], dtype=np.float32)
+            pitch = np.concatenate(pitch) if pitch else np.array([], dtype=np.float32)
+            confidence = np.concatenate(confidence) if confidence else np.array([], dtype=np.float32)
             
             # Apply confidence filtering: set unvoiced frames (low confidence) to 0 Hz
             final_pitches = np.where(
