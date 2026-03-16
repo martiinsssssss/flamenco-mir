@@ -113,8 +113,9 @@ class PESTOTracker:
                 )
 
                 # Avoid in-place ops on inference tensors returned by PyTorch models
-                chunk_timesteps = chunk_timesteps + (start / self.sample_rate)  # shift timestamps
-
+                chunk_timesteps=chunk_timesteps/1000 # conver to seconds
+                chunk_timesteps = chunk_timesteps + (start / self.sample_rate) #convert start/sr inito miliseconds
+                
                 # Convert chunk outputs to numpy and aggregate
                 if isinstance(chunk_pitch, torch.Tensor):
                     chunk_pitch = chunk_pitch.detach().cpu().numpy()
@@ -134,8 +135,6 @@ class PESTOTracker:
                 pitch.append(chunk_pitch)
                 confidence.append(chunk_confidence)
                 timesteps.append(chunk_timesteps)
-
-
 
     
             # Concatenate chunk outputs
