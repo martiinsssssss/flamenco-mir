@@ -1,4 +1,4 @@
-name: flamencoMIR_pycante
+name: flamencoMIR_2
 channels:
   - conda-forge
   - pytorch
@@ -6,7 +6,7 @@ channels:
 dependencies:
   - python=3.9
   - ipykernel
-  - numpy=1.24.3
+  - numpy
   - scipy
   - pandas
   - librosa
