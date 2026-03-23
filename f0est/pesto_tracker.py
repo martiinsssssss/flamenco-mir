@@ -95,9 +95,6 @@ class PESTOTracker:
             if self.use_gpu:
                 wav = wav.to(self.device)
             
-            # Run PESTO pitch detection
-            # Returns: timesteps, pitch, confidence, activations
-            #timesteps, pitch, confidence, _ = pesto.predict(wav, sr, step_size=self.step_size*1000)# convert seconds to miliseconds
             chunk_sec = 15
             chunk_samples = int(chunk_sec * self.sample_rate)
 
@@ -112,10 +109,10 @@ class PESTOTracker:
                     chunk, self.sample_rate, step_size=self.step_size * 1000
                 )
 
-                # Avoid in-place ops on inference tensors returned by PyTorch models
                 chunk_timesteps=chunk_timesteps/1000 # conver to seconds
                 chunk_timesteps = chunk_timesteps + (start / self.sample_rate) #convert start/sr inito miliseconds
                 
+                # Avoid in-place ops on inference tensors returned by PyTorch models
                 # Convert chunk outputs to numpy and aggregate
                 if isinstance(chunk_pitch, torch.Tensor):
                     chunk_pitch = chunk_pitch.detach().cpu().numpy()
