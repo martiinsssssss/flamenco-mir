@@ -77,7 +77,7 @@ def parse_args():
     parser.add_argument(
         "--pycante-path",
         type=Path,
-        default="/home/ibroto/Documents/PyCante",
+        default="../PyCante",
         help="Optional path added to sys.path before importing cante (e.g., /path/to/PyCante).",
     )
     parser.add_argument(

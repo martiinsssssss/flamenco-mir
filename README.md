@@ -194,7 +194,7 @@ python noteTranscription/main.py \
   --method cante \
   --audio-dir data/cante2midiaudio \
   --f0-dir f0est/f0Contours_2col/f0Contour_voiceDemucs_PESTO \
-  --pycante-path /home/ibroto/Documents/PyCante \
+  --pycante-path ../PyCante \
   --cante-acc \
   --output-dir noteTranscription/output_cante
 ```
