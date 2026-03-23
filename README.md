@@ -160,24 +160,26 @@ Each output CSV contains:
 
 Script: [noteTranscription/main.py](noteTranscription/main.py)
 
-This script processes pre-computed f0 contours, spectrograms, and RMS features to generate note-level transcriptions with onsets, durations, and MIDI pitches.
+This script supports two transcription methods:
+- `paper`: Kroher & Gómez method using pre-computed `f0 + lowlevel + spectrum` features.
+- `cante`: PyCante transcription using `audio + f0` pairs.
 
-**Note:** This uses the Kroher & Gómez algorithm from the paper and requires the pre-computed feature files from the `cante2midi` dataset.
-
-### 5.1 Basic run
+### 5.1 Basic run (`paper` method)
 
 ```bash
 python noteTranscription/main.py \
+  --method paper \
   --f0-dir data/cante2midi_f0 \
   --lowlevel-dir data/cante2midi_lowlevel \
   --spectrum-dir data/cante2midi_spectrum \
   --output-dir noteTranscription/output
 ```
 
-### 5.2 Process only first N tracks
+### 5.2 Process only first N tracks (`paper` method)
 
 ```bash
 python noteTranscription/main.py \
+  --method paper \
   --f0-dir data/cante2midi_f0 \
   --lowlevel-dir data/cante2midi_lowlevel \
   --spectrum-dir data/cante2midi_spectrum \
@@ -185,11 +187,29 @@ python noteTranscription/main.py \
   --limit 10
 ```
 
-### 5.3 Important arguments
+### 5.3 Basic run (`cante` method)
 
+```bash
+python noteTranscription/main.py \
+  --method cante \
+  --audio-dir data/cante2midiaudio \
+  --f0-dir f0est/f0Contours_2col/f0Contour_voiceDemucs_PESTO \
+  --pycante-path /home/ibroto/Documents/PyCante \
+  --cante-acc \
+  --output-dir noteTranscription/output_cante
+```
+
+If `cante` is already installed in the active environment, you can omit `--pycante-path`.
+
+### 5.4 Important arguments
+
+- `--method {paper,cante}`
 - `--f0-dir <dir>` (default: `data/cante2midi_f0`)
-- `--lowlevel-dir <dir>` (default: `data/cante2midi_lowlevel`)
-- `--spectrum-dir <dir>` (default: `data/cante2midi_spectrum`)
+- `--audio-dir <dir>` (used by `cante`, default: `data/cante2midiaudio`)
+- `--pycante-path <dir>` (optional path to PyCante source)
+- `--cante-acc` (enable accompaniment-aware mode in `cante`)
+- `--lowlevel-dir <dir>` (used by `paper`, default: `data/cante2midi_lowlevel`)
+- `--spectrum-dir <dir>` (used by `paper`, default: `data/cante2midi_spectrum`)
 - `--output-dir <dir>` (required)
 - `--fs 44100` (sample rate)
 - `--hop-size 128` (hop size in samples)
@@ -198,7 +218,7 @@ python noteTranscription/main.py \
 - `--gauss-sigma-s 0.0435` (Gaussian filter sigma in seconds)
 - `--min-duration-s 0.05` (minimum note duration)
 
-### 5.4 Output format
+### 5.5 Output format
 
 Each output CSV (`<track_id>.notes.csv`) contains:
 - `onset` (seconds)
