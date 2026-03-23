@@ -30,6 +30,8 @@ Usage:
 
 import argparse
 import csv
+import importlib
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -39,7 +41,14 @@ from note_transcription import check_and_align_features, transcribe_notes
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Batch note transcription from f0, spectrum, and lowlevel features."
+        description="Batch note transcription from feature files."
+    )
+    parser.add_argument(
+        "--method",
+        type=str,
+        choices=["paper", "cante"],
+        default="paper",
+        help="Transcription method: 'paper' (local implementation) or 'cante' (PyCante).",
     )
     parser.add_argument(
         "--f0-dir",
@@ -58,6 +67,23 @@ def parse_args():
         type=Path,
         default=Path("data/cante2midi_spectrum"),
         help="Directory containing spectrum CSV files (*.spectrum.csv).",
+    )
+    parser.add_argument(
+        "--audio-dir",
+        type=Path,
+        default=Path("data/cante2midiaudio"),
+        help="Directory containing audio WAV files (*.wav). Required for --method cante.",
+    )
+    parser.add_argument(
+        "--pycante-path",
+        type=Path,
+        default="/home/ibroto/Documents/PyCante",
+        help="Optional path added to sys.path before importing cante (e.g., /path/to/PyCante).",
+    )
+    parser.add_argument(
+        "--cante-acc",
+        action="store_true",
+        help="Enable accompaniment-aware mode in cante.transcribe(..., acc=True).",
     )
     parser.add_argument(
         "--output-dir",
@@ -245,6 +271,49 @@ def find_matching_files(f0_dir: Path, lowlevel_dir: Path, spectrum_dir: Path) ->
     return [(id, f0_files[id], lowlevel_files[id], spectrum_files[id]) for id in common_ids]
 
 
+def find_matching_audio_f0_files(f0_dir: Path, audio_dir: Path) -> list:
+    """
+    Find all matching pairs (audio, f0) by base name.
+    Returns list of (base_name, audio_path, f0_path) tuples.
+    """
+    f0_files = {p.stem.replace(".f0", ""): p for p in f0_dir.glob("*.f0.csv")}
+    audio_files = {p.stem: p for p in audio_dir.glob("*.wav")}
+
+    common_ids = sorted(set(f0_files.keys()) & set(audio_files.keys()))
+
+    if not common_ids:
+        raise FileNotFoundError(
+            f"No matching audio-f0 pairs found in:\n"
+            f"  audio: {audio_dir}\n"
+            f"  f0: {f0_dir}\n"
+            f"Expected matching filenames like:\n"
+            f"  01_Artist_Song.wav\n"
+            f"  01_Artist_Song.f0.csv"
+        )
+
+    missing_pairs = len(f0_files) + len(audio_files) - 2 * len(common_ids)
+    if missing_pairs > 0:
+        print(f"[Warning] Some files don't have matching audio-f0 pairs (missing {missing_pairs} pairs).")
+
+    return [(id, audio_files[id], f0_files[id]) for id in common_ids]
+
+
+def load_cante_module(pycante_path):
+    if pycante_path is not None:
+        pycante_path = pycante_path.resolve()
+        if not pycante_path.exists():
+            raise FileNotFoundError(f"PyCante path does not exist: {pycante_path}")
+        if str(pycante_path) not in sys.path:
+            sys.path.insert(0, str(pycante_path))
+
+    try:
+        return importlib.import_module("cante")
+    except ImportError as e:
+        raise ImportError(
+            "Could not import 'cante'. Install PyCante or pass --pycante-path to its source folder."
+        ) from e
+
+
 def save_notes_csv(output_path: Path, notes: list) -> None:
     """
     Save note transcription to CSV.
@@ -263,76 +332,111 @@ def main():
 
     if not args.f0_dir.exists():
         raise FileNotFoundError(f"f0 directory not found: {args.f0_dir}")
-    if not args.lowlevel_dir.exists():
-        raise FileNotFoundError(f"lowlevel directory not found: {args.lowlevel_dir}")
-    if not args.spectrum_dir.exists():
-        raise FileNotFoundError(f"spectrum directory not found: {args.spectrum_dir}")
+
+    if args.method == "paper":
+        if not args.lowlevel_dir.exists():
+            raise FileNotFoundError(f"lowlevel directory not found: {args.lowlevel_dir}")
+        if not args.spectrum_dir.exists():
+            raise FileNotFoundError(f"spectrum directory not found: {args.spectrum_dir}")
+    elif args.method == "cante":
+        if not args.audio_dir.exists():
+            raise FileNotFoundError(f"audio directory not found: {args.audio_dir}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Find all matching file triplets
-    triplets = find_matching_files(args.f0_dir, args.lowlevel_dir, args.spectrum_dir)
+    if args.method == "paper":
+        # Find all matching file triplets
+        triplets = find_matching_files(args.f0_dir, args.lowlevel_dir, args.spectrum_dir)
 
-    if args.limit is not None:
-        triplets = triplets[: args.limit]
+        if args.limit is not None:
+            triplets = triplets[: args.limit]
 
-    print(f"{len(triplets)} file triplets found.")
+        print(f"{len(triplets)} file triplets found.")
 
-    for idx, (base_id, f0_path, lowlevel_path, spectrum_path) in enumerate(triplets, 1):
-        try:
-            print(f"[{idx}/{len(triplets)}] Processing {base_id}...")
+        for idx, (base_id, f0_path, lowlevel_path, spectrum_path) in enumerate(triplets, 1):
+            try:
+                print(f"[{idx}/{len(triplets)}] Processing {base_id}...")
 
-            # Load features
-            f0_hz = load_f0(f0_path)
-            rms = load_lowlevel(lowlevel_path, fs=args.fs)
-            spectrum = load_spectrum(spectrum_path)
+                # Load features
+                f0_hz = load_f0(f0_path)
+                rms = load_lowlevel(lowlevel_path, fs=args.fs)
+                spectrum = load_spectrum(spectrum_path)
 
-            # Align features to the same time grid (important: streams use different hop sizes)
-            f0_hz, rms, spectrum = check_and_align_features(
-                f0_hz=f0_hz,
-                rms=rms,
-                spectrum=spectrum,
-                f0_hop=args.f0_hop,
-                rms_hop=args.rms_hop,
-                spectrum_hop=args.spectrum_hop,
-                target_hop=args.hop_size,
-                fs=args.fs,
-                verbose=False,
-            )
+                # Align features to the same time grid (important: streams use different hop sizes)
+                f0_hz, rms, spectrum = check_and_align_features(
+                    f0_hz=f0_hz,
+                    rms=rms,
+                    spectrum=spectrum,
+                    f0_hop=args.f0_hop,
+                    rms_hop=args.rms_hop,
+                    spectrum_hop=args.spectrum_hop,
+                    target_hop=args.hop_size,
+                    fs=args.fs,
+                    verbose=False,
+                )
 
-            n = len(f0_hz)
+                n = len(f0_hz)
 
-            if n < 10:
-                print(f"  ⚠️  Skipping {base_id}: too few frames ({n})")
+                if n < 10:
+                    print(f"  ⚠️  Skipping {base_id}: too few frames ({n})")
+                    continue
+
+                # Transcribe notes
+                notes = transcribe_notes(
+                    f0_hz=f0_hz,
+                    rms=rms,
+                    spectrum=spectrum,
+                    fs=args.fs,
+                    hop_size=args.hop_size,
+                    delta_p_min=args.delta_p_min,
+                    gauss_sigma_s=args.gauss_sigma_s,
+                    gauss_threshold=args.gauss_threshold,
+                    volume_threshold_db=args.volume_threshold_db,
+                    pitch_z_threshold=args.pitch_z_threshold,
+                    min_duration_s=args.min_duration_s,
+                    pitch_range_semitones=args.pitch_range_semitones,
+                )
+
+                # Save
+                output_path = args.output_dir / f"{base_id}.notes.csv"
+                save_notes_csv(output_path, notes)
+
+                print(f"  ✓ {len(notes)} notes transcribed -> {output_path}")
+
+            except Exception as e:
+                print(f"  ✗ Error processing {base_id}: {e}")
                 continue
 
-            # Transcribe notes
-            notes = transcribe_notes(
-                f0_hz=f0_hz,
-                rms=rms,
-                spectrum=spectrum,
-                fs=args.fs,
-                hop_size=args.hop_size,
-                delta_p_min=args.delta_p_min,
-                gauss_sigma_s=args.gauss_sigma_s,
-                gauss_threshold=args.gauss_threshold,
-                volume_threshold_db=args.volume_threshold_db,
-                pitch_z_threshold=args.pitch_z_threshold,
-                min_duration_s=args.min_duration_s,
-                pitch_range_semitones=args.pitch_range_semitones,
-            )
+    elif args.method == "cante":
+        cante = load_cante_module(args.pycante_path)
+        pairs = find_matching_audio_f0_files(args.f0_dir, args.audio_dir)
 
-            # Save
-            output_path = args.output_dir / f"{base_id}.notes.csv"
-            save_notes_csv(output_path, notes)
+        if args.limit is not None:
+            pairs = pairs[: args.limit]
 
-            print(f"  ✓ {len(notes)} notes transcribed -> {output_path}")
+        print(f"{len(pairs)} audio-f0 pairs found.")
 
-        except Exception as e:
-            print(f"  ✗ Error processing {base_id}: {e}")
-            continue
+        for idx, (base_id, audio_path, f0_path) in enumerate(pairs, 1):
+            try:
+                print(f"[{idx}/{len(pairs)}] Processing {base_id}...")
+                output_path = args.output_dir / f"{base_id}.notes.csv"
+                output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"\nNote transcription complete. Output directory: {args.output_dir}")
+                cante.transcribe(
+                    str(audio_path),
+                    acc=args.cante_acc,
+                    f0_file=str(f0_path),
+                    recursive=False,
+                    output_filename=str(output_path),
+                )
+
+                print(f"  ✓ notes transcribed -> {output_path}")
+
+            except Exception as e:
+                print(f"  ✗ Error processing {base_id}: {e}")
+                continue
+
+    print(f"\nNote transcription complete ({args.method}). Output directory: {args.output_dir}")
 
 
 if __name__ == "__main__":
