@@ -1,10 +1,16 @@
 #Data directories
 *.zip
 data/**/*
+
+
+#Intermediate computed files
 SourceSeparation/*_output/**/*
-f0est/f0Contour_voice_PESTO/*.csv
+f0est/**/*.csv
+noteTranscription/**/*.notes.csv
+evaluation/results/*.csv
 
 
+#Envorinment
 .venv/
 
 .DS_Store
@@ -15,6 +21,7 @@ f0est/f0Contour_voice_PESTO/*.csv
 
 #Models
 SourceSeparation/pretrained_models/**/*
+pretrained_models/**/*
 
 #Examples
 *.sv
