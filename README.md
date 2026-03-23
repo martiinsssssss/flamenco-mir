@@ -3,11 +3,14 @@
 Flamenco MIR workspace for:
 - source separation (voice/instrumental)
 - frame-level f0 extraction on separated voice tracks
+- note transcription (onset detection + pitch labelling)
 - note/onset evaluation utilities
 
-This README includes setup and **all commands to run the two main entry points**:
+This README includes setup and **all commands to run the four main entry points**:
 - [SourceSeparation/main.py](SourceSeparation/main.py)
 - [f0est/main.py](f0est/main.py)
+- [noteTranscription/main.py](noteTranscription/main.py)
+- [evaluation/main.py](evaluation/main.py)
 
 ---
 
@@ -38,9 +41,15 @@ python -V
 
 - Input audio (dataset): `data/cante2midiaudio/`
 - Source-separation outputs (default examples):
-	- `SourceSeparation/demucs_output/`
-	- `SourceSeparation/spleeter_output/`
+  - `SourceSeparation/demucs_output/`
+  - `SourceSeparation/spleeter_output/`
 - f0 outputs (recommended): `f0est/f0Contour_voice_PESTO/`
+- Pre-computed features (for note transcription):
+  - `data/cante2midi_f0/` (f0 contours)
+  - `data/cante2midi_spectrum/` (magnitude spectra)
+  - `data/cante2midi_lowlevel/` (RMS and other low-level features)
+- Note transcription outputs (recommended): `noteTranscription/output/`
+- Evaluation outputs (recommended): `evaluation/results/`
 
 ---
 
@@ -147,31 +156,149 @@ Each output CSV contains:
 
 ---
 
-## 5) End-to-end example
+## 5) Run note transcription (`noteTranscription/main.py`)
 
-Run separation first, then f0:
+Script: [noteTranscription/main.py](noteTranscription/main.py)
+
+This script processes pre-computed f0 contours, spectrograms, and RMS features to generate note-level transcriptions with onsets, durations, and MIDI pitches.
+
+**Note:** This uses the Kroher & Gómez algorithm from the paper and requires the pre-computed feature files from the `cante2midi` dataset.
+
+### 5.1 Basic run
 
 ```bash
-# 1) Separate
-python SourceSeparation/main.py \
-	--model demucs \
-	--input-dir data/cante2midiaudio \
-	--output-dir SourceSeparation/demucs_output \
-	--extensions .wav \
-	--recursive
+python noteTranscription/main.py \
+  --f0-dir data/cante2midi_f0 \
+  --lowlevel-dir data/cante2midi_lowlevel \
+  --spectrum-dir data/cante2midi_spectrum \
+  --output-dir noteTranscription/output
+```
 
-# 2) Extract f0 from separated voice stems
-python f0est/main.py \
-	--input-dir SourceSeparation/demucs_output \
-	--output-dir f0est/f0Contour_voice_PESTO \
-	--pattern "**/voice.wav" \
-	--method pesto
+### 5.2 Process only first N tracks
+
+```bash
+python noteTranscription/main.py \
+  --f0-dir data/cante2midi_f0 \
+  --lowlevel-dir data/cante2midi_lowlevel \
+  --spectrum-dir data/cante2midi_spectrum \
+  --output-dir noteTranscription/output \
+  --limit 10
+```
+
+### 5.3 Important arguments
+
+- `--f0-dir <dir>` (default: `data/cante2midi_f0`)
+- `--lowlevel-dir <dir>` (default: `data/cante2midi_lowlevel`)
+- `--spectrum-dir <dir>` (default: `data/cante2midi_spectrum`)
+- `--output-dir <dir>` (required)
+- `--fs 44100` (sample rate)
+- `--hop-size 128` (hop size in samples)
+- `--limit N` (process first N files)
+- `--delta-p-min 80.0` (pitch onset threshold in cents)
+- `--gauss-sigma-s 0.0435` (Gaussian filter sigma in seconds)
+- `--min-duration-s 0.05` (minimum note duration)
+
+### 5.4 Output format
+
+Each output CSV (`<track_id>.notes.csv`) contains:
+- `onset` (seconds)
+- `duration` (seconds)
+- `midi` (MIDI pitch number)
+
+Example output:
+```
+onset,duration,midi
+0.636,0.075,56
+0.711,0.058,56
+0.769,0.073,56
+0.842,0.070,60
 ```
 
 ---
 
-## 6) Quick troubleshooting
+## 6) Run evaluation (`evaluation/main.py`)
+
+Script: [evaluation/main.py](evaluation/main.py)
+
+This script evaluates all transcription folders under `noteTranscription/*_transcription`
+against the ground truth in `data/cante2midi_groundTruth`.
+
+### 6.1 Evaluate all systems
+
+```bash
+python evaluation/main.py
+```
+
+### 6.2 Quick test (first N file pairs per system)
+
+```bash
+python evaluation/main.py --limit-files 5
+```
+
+### 6.3 Custom paths
+
+```bash
+python evaluation/main.py \
+  --ref-dir data/cante2midi_groundTruth \
+  --est-root noteTranscription \
+  --folder-pattern "*_transcription" \
+  --output-dir evaluation/results
+```
+
+### 6.4 Outputs
+
+- `evaluation/results/summary_all_systems.csv`
+- `evaluation/results/<system>.per_track.csv`
+
+---
+
+## 7) End-to-end example
+
+### Option A: Use pre-computed features from dataset
+
+```bash
+# Run note transcription on all cante2midi tracks
+python noteTranscription/main.py \
+  --f0-dir data/cante2midi_f0 \
+  --lowlevel-dir data/cante2midi_lowlevel \
+  --spectrum-dir data/cante2midi_spectrum \
+  --output-dir noteTranscription/output
+```
+
+### Option B: Full pipeline (separation → f0 → transcription)
+
+```bash
+# 1) Separate
+python SourceSeparation/main.py \
+  --model demucs \
+  --input-dir data/cante2midiaudio \
+  --output-dir SourceSeparation/demucs_output \
+  --extensions .wav \
+  --recursive
+
+# 2) Extract f0 from separated voice stems
+python f0est/main.py \
+  --input-dir SourceSeparation/demucs_output \
+  --output-dir f0est/f0Contour_voice_PESTO \
+  --pattern "**/voice.wav" \
+  --method pesto
+
+# 3) Note: You'll need to compute spectrum and RMS features 
+#    separately (see evaluation/eval.ipynb for examples)
+#    Then run note transcription with custom paths:
+# python noteTranscription/main.py \
+#   --f0-dir <your_f0_output_dir> \
+#   --lowlevel-dir <your_rms_output_dir> \
+#   --spectrum-dir <your_spectrum_output_dir> \
+#   --output-dir noteTranscription/output
+```
+
+---
+
+## 8) Quick troubleshooting
 
 - If a command finds no files, verify `--input-dir`, `--extensions`, and `--pattern`.
 - If GPU is unavailable, use Demucs with `--device cpu` and omit `--use-gpu` in f0 extraction.
 - Ensure `ffmpeg` is available in the environment for audio tooling compatibility.
+- For note transcription: ensure all three directories (f0, lowlevel, spectrum) contain matching file names (e.g., `01_Artist_Song.f0.csv`, `01_Artist_Song.lowlevel.csv`, etc.)
+- For evaluation: estimate files can be `.notes.csv`, `.notes`, or `.csv`; matching is done by track id.
