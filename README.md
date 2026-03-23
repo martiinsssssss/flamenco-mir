@@ -48,8 +48,39 @@ python -V
   - `data/cante2midi_f0/` (f0 contours)
   - `data/cante2midi_spectrum/` (magnitude spectra)
   - `data/cante2midi_lowlevel/` (RMS and other low-level features)
-- Note transcription outputs (recommended): `noteTranscription/output/`
+- Note transcription outputs (current folders):
+  - `noteTranscription/baseline_f0_transcription/`
+  - `noteTranscription/baseline_f0_canteTranscription/`
+  - `noteTranscription/demucs_PESTO_transcription/`
+  - `noteTranscription/demucs_PESTO_canteTranscription/`
+  - `noteTranscription/spleeter_PESTO_transcription/`
+  - `noteTranscription/spleeter_PESTO_canteTranscription/`
 - Evaluation outputs (recommended): `evaluation/results/`
+
+### 2.1 How the data is organized (important)
+
+The project expects all dataset parts to be placed directly under `data/` at the same directory level.
+
+Please download **both ZIP files**:
+- cante metadata ZIP
+- cante audio ZIP
+
+Then unzip both of them so that all `feature_level` folders are inside `data/` (not nested inside an extra ZIP folder), under the flamenco-mir folder.
+
+Expected layout (simplified):
+
+```text
+data/
+  cante2midiaudio/
+  cante2midi_meta.xml
+  cante2midi_groundTruth/
+  cante2midi_f0/
+  cante2midi_lowlevel/
+  cante2midi_spectrum/
+  ...
+```
+
+If a ZIP creates an extra nested folder (for example `data/some_zip_root/cante2midi_f0`), move the inner folders up so paths like `data/cante2midi_f0` exist exactly.
 
 ---
 

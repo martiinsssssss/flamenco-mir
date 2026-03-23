@@ -1,4 +1,4 @@
-name: flamencoMIR_2
+name: flamencoMIR
 channels:
   - conda-forge
   - pytorch
