@@ -5,11 +5,12 @@ import argparse
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import mir_eval
 from scipy.optimize import linear_sum_assignment
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
 
 @dataclass
@@ -140,6 +141,82 @@ def onset_metrics(ref_onsets: np.ndarray, est_onsets: np.ndarray, window: float 
     }
 
 
+def notes_to_intervals(notes: np.ndarray) -> np.ndarray:
+    """
+    Convert notes from [onset, duration, ...] rows to [start, end] rows.
+    """
+    if notes.size == 0:
+        return np.zeros((0, 2), dtype=float)
+
+    intervals = []
+    for n in notes:
+        onset = float(n[0])
+        duration = float(n[1])
+        intervals.append([onset, onset + duration])
+    return np.asarray(intervals, dtype=float)
+
+
+def intervals_to_voicing(intervals: np.ndarray, t_grid: np.ndarray) -> np.ndarray:
+    """
+    Convert note intervals to a binary voicing array over a time grid.
+    """
+    voicing = np.zeros_like(t_grid, dtype=int)
+
+    for start, end in intervals:
+        voicing[(t_grid >= start) & (t_grid < end)] = 1
+
+    return voicing
+
+
+def evaluate_voicing(gt_notes: np.ndarray, est_notes: np.ndarray, hop: float = 0.01) -> Dict[str, float]:
+    """
+    Evaluate frame-level voicing metrics from note arrays [onset, duration, ...].
+    """
+    gt_intervals = notes_to_intervals(gt_notes)
+    est_intervals = notes_to_intervals(est_notes)
+
+    if gt_intervals.size == 0 and est_intervals.size == 0:
+        return {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "accuracy": 1.0,
+        }
+
+    starts = []
+    ends = []
+    if gt_intervals.size:
+        starts.append(float(gt_intervals[:, 0].min()))
+        ends.append(float(gt_intervals[:, 1].max()))
+    if est_intervals.size:
+        starts.append(float(est_intervals[:, 0].min()))
+        ends.append(float(est_intervals[:, 1].max()))
+
+    t_min = min(starts)
+    t_max = max(ends)
+    if t_max <= t_min:
+        t_max = t_min + hop
+
+    t_grid = np.arange(t_min, t_max, hop)
+    if t_grid.size == 0:
+        t_grid = np.array([t_min], dtype=float)
+
+    gt_voicing = intervals_to_voicing(gt_intervals, t_grid)
+    est_voicing = intervals_to_voicing(est_intervals, t_grid)
+
+    precision = precision_score(gt_voicing, est_voicing, zero_division=0)
+    recall = recall_score(gt_voicing, est_voicing, zero_division=0)
+    f1 = f1_score(gt_voicing, est_voicing, zero_division=0)
+    acc = accuracy_score(gt_voicing, est_voicing)
+
+    return {
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "accuracy": float(acc),
+    }
+
+
 def build_note_cost_matrix(
     ref: NoteData,
     est: NoteData,
@@ -224,12 +301,15 @@ def note_metrics_mir_eval(ref: NoteData, est: NoteData, onset_tolerance: float =
         offset_min_tolerance=0.0,
         strict=False,
     )
+
+
     return {
         "precision": float(p),
         "recall": float(r),
         "f1": float(f1),
         "avg_overlap_ratio": float(overlap),
     }
+
 
 
 def evaluate_pair(ref_path: Path, est_path: Path) -> Dict[str, object]:
@@ -239,6 +319,9 @@ def evaluate_pair(ref_path: Path, est_path: Path) -> Dict[str, object]:
     onset = onset_metrics(ref.onsets, est.onsets, window=0.15)
     note = note_metrics_paper_style(ref, est, onset_tolerance=0.15, duration_tolerance_ratio=0.30)
     note_mir = note_metrics_mir_eval(ref, est, onset_tolerance=0.15)
+    gt_notes = np.column_stack((ref.onsets, ref.durations)) if len(ref.intervals) else np.zeros((0, 2), dtype=float)
+    est_notes = np.column_stack((est.onsets, est.durations)) if len(est.intervals) else np.zeros((0, 2), dtype=float)
+    voicing = evaluate_voicing(gt_notes, est_notes, hop=0.01)
 
     return {
         "track": ref_path.stem,
@@ -257,6 +340,10 @@ def evaluate_pair(ref_path: Path, est_path: Path) -> Dict[str, object]:
         "mir_eval_note_recall": note_mir["recall"],
         "mir_eval_note_f1": note_mir["f1"],
         "mir_eval_overlap": note_mir["avg_overlap_ratio"],
+        "voicing_precision": voicing["precision"],
+        "voicing_recall": voicing["recall"],
+        "voicing_f1": voicing["f1"],
+        "voicing_accuracy": voicing["accuracy"],
     }
 
 
@@ -292,6 +379,7 @@ def aggregate(results: List[Dict[str, object]]) -> Dict[str, float]:
         "onset_precision", "onset_recall", "onset_f1",
         "note_precision", "note_recall", "note_f1",
         "mir_eval_note_precision", "mir_eval_note_recall", "mir_eval_note_f1",
+        "voicing_precision", "voicing_recall", "voicing_f1", "voicing_accuracy",
     ]
     out: Dict[str, float] = {}
     for key in metric_keys:

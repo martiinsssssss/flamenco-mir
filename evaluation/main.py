@@ -175,17 +175,24 @@ def main() -> None:
                 "onset_f1": metrics["onset_f1"],
                 "note_f1": metrics["note_f1"],
                 "mir_eval_note_f1": metrics["mir_eval_note_f1"],
+                "voicing_f1": metrics["voicing_f1"],
+                "voicing_accuracy": metrics["voicing_accuracy"],
                 "onset_precision": metrics["onset_precision"],
                 "onset_recall": metrics["onset_recall"],
                 "note_precision": metrics["note_precision"],
                 "note_recall": metrics["note_recall"],
                 "mir_eval_note_precision": metrics["mir_eval_note_precision"],
                 "mir_eval_note_recall": metrics["mir_eval_note_recall"],
+                "voicing_precision": metrics["voicing_precision"],
+                "voicing_recall": metrics["voicing_recall"],
             }
             summary_rows.append(row)
 
             print(f"Pairs: {row['n_pairs']}")
-            print(f"onset_f1={row['onset_f1']:.4f} | note_f1={row['note_f1']:.4f} | mir_eval_note_f1={row['mir_eval_note_f1']:.4f}")
+            print(
+                f"onset_f1={row['onset_f1']:.4f} | note_f1={row['note_f1']:.4f} | "
+                f"mir_eval_note_f1={row['mir_eval_note_f1']:.4f} | voicing_f1={row['voicing_f1']:.4f}"
+            )
             print(f"Saved per-track: {per_track_csv}")
 
         except Exception as e:
@@ -204,7 +211,8 @@ def main() -> None:
             f"[{row['system']}] n={row['n_pairs']} | "
             f"onset_f1={float(row['onset_f1']):.4f} | "
             f"note_f1={float(row['note_f1']):.4f} | "
-            f"mir_eval_note_f1={float(row['mir_eval_note_f1']):.4f}"
+            f"mir_eval_note_f1={float(row['mir_eval_note_f1']):.4f} | "
+            f"voicing_f1={float(row['voicing_f1']):.4f}"
         )
     print(f"\nSaved summary: {summary_csv}")
 
