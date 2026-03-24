@@ -1,2 +1,30 @@
+#Data directories
 *.zip
 data/**/*
+
+
+#Intermediate computed files
+SourceSeparation/*_output/**/*
+f0est/**/*.csv
+noteTranscription/demucs_PESTO_transcription/*.notes.csv
+noteTranscription/spleeter_PESTO_transcription/*.notes.csv
+noteTranscription/baseline_f0_transcription/*.notes.csv
+
+evaluation/results/*.csv
+
+
+#Envorinment
+.venv/
+
+.DS_Store
+
+#python cache 
+*.pyc
+*.requirements.txt
+
+#Models
+SourceSeparation/pretrained_models/**/*
+pretrained_models/**/*
+
+#Examples
+*.sv
