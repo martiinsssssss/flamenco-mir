@@ -335,13 +335,13 @@ python f0est/main.py \
   --method pesto
 
 # 3) Note: You'll need to compute spectrum and RMS features 
-#    separately (see evaluation/eval.ipynb for examples)
+#    separately or download them through the canto2midi dataset page.
 #    Then run note transcription with custom paths:
-# python noteTranscription/main.py \
-#   --f0-dir <your_f0_output_dir> \
-#   --lowlevel-dir <your_rms_output_dir> \
-#   --spectrum-dir <your_spectrum_output_dir> \
-#   --output-dir noteTranscription/output
+python noteTranscription/main.py \
+  --f0-dir <your_f0_output_dir> \
+  --lowlevel-dir <your_rms_output_dir> \
+  --spectrum-dir <your_spectrum_output_dir> \
+  --output-dir noteTranscription/output
 ```
 
 ---
